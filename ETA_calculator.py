@@ -1,67 +1,78 @@
 import datetime
 
-class ProjectETACalculator:
-    def __init__(self, total_tasks, qa_rate):
-        self.total_tasks = total_tasks
-        self.qa_rate = qa_rate
-        self.work_hours_per_day = 6.5
-        self.levels = {
-            'L0': {'hc': 0, 'lt': 0, 'tasks': total_tasks},
-            'L1': {'hc': 0, 'lt': 0, 'tasks': 0},
-            'L2': {'hc': 0, 'lt': 0, 'tasks': 0}
-        }
-        self.completed_tasks = 0
-        self.total_human_minutes = 0
+def calculate_eta(total_tasks, qa_rate, l0_hc, l0_lt, l1_hc, l1_lt, l2_hc, l2_lt):
+    work_hours_per_day = 6.5
+    levels = {
+        'L0': {'hc': l0_hc, 'lt': l0_lt, 'tasks': total_tasks},
+        'L1': {'hc': l1_hc, 'lt': l1_lt, 'tasks': 0},
+        'L2': {'hc': l2_hc, 'lt': l2_lt, 'tasks': 0}
+    }
+    completed_tasks = 0
+    total_human_minutes = 0
+    start_time = datetime.datetime.now()
+    current_time = start_time
 
-    def set_level_params(self, level, hc, lt):
-        self.levels[level]['hc'] = hc
-        self.levels[level]['lt'] = lt
-
-    def calculate_eta(self):
-        start_time = datetime.datetime.now()
-        current_time = start_time
-        
-        while self.completed_tasks < self.total_tasks:
-            for level in ['L0', 'L1', 'L2']:
-                tasks_completed = min(
-                    self.levels[level]['tasks'],
-                    self.levels[level]['hc'] * (60 / self.levels[level]['lt'])
-                )
-                
-                self.levels[level]['tasks'] -= tasks_completed
-                self.total_human_minutes += tasks_completed * self.levels[level]['lt']
-                
-                if level == 'L0':
-                    tasks_to_qa = tasks_completed * self.qa_rate
-                    self.levels['L1']['tasks'] += tasks_to_qa
-                    self.completed_tasks += tasks_completed - tasks_to_qa
-                elif level == 'L1':
-                    self.levels['L2']['tasks'] += tasks_completed
-                else:
-                    self.completed_tasks += tasks_completed
+    while completed_tasks < total_tasks:
+        for level in ['L0', 'L1', 'L2']:
+            tasks_completed = min(
+                levels[level]['tasks'],
+                levels[level]['hc'] * (60 / levels[level]['lt'])
+            )
             
-            current_time += datetime.timedelta(hours=1)
+            levels[level]['tasks'] -= tasks_completed
+            total_human_minutes += tasks_completed * levels[level]['lt']
             
-            if current_time.hour == 0:
-                current_time += datetime.timedelta(hours=24 - self.work_hours_per_day)
+            if level == 'L0':
+                tasks_to_qa = tasks_completed * qa_rate
+                levels['L1']['tasks'] += tasks_to_qa
+                completed_tasks += tasks_completed - tasks_to_qa
+            elif level == 'L1':
+                levels['L2']['tasks'] += tasks_completed
+            else:  # L2
+                completed_tasks += tasks_completed
         
-        total_time = current_time - start_time
-        days, seconds = total_time.days, total_time.seconds
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
+        current_time += datetime.timedelta(hours=1)
         
-        return f"{days:02d}:{hours:02d}:{minutes:02d}", self.total_human_minutes
+        if current_time.hour == 0:  # New day
+            current_time += datetime.timedelta(hours=24 - work_hours_per_day)
 
-    def get_queue_status(self):
-        return {level: self.levels[level]['tasks'] for level in self.levels}
+    total_time = current_time - start_time
+    days, seconds = total_time.days, total_time.seconds
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
 
-# Example
-calculator = ProjectETACalculator(total_tasks=1000, qa_rate=0.8)
-calculator.set_level_params('L0', hc=40, lt=5)
-calculator.set_level_params('L1', hc=10, lt=3) 
-calculator.set_level_params('L2', hc=5, lt=2)  
+    return f"{days:02d}:{hours:02d}:{minutes:02d}", total_human_minutes
 
-eta, total_human_minutes = calculator.calculate_eta()
-print(f"Estimated Time to Completion: {eta}")
-print(f"Total Human Minutes: {total_human_minutes}")
-print(f"Queue Status: {calculator.get_queue_status()}")
+def get_input(prompt, input_type=float):
+    while True:
+        try:
+            return input_type(input(prompt))
+        except ValueError:
+            print("Invalid input. Please try again.")
+
+def main():
+    print("Welcome to the Project ETA Calculator")
+    print("Please enter the following information:")
+
+    total_tasks = get_input("Total number of tasks: ", int)
+    qa_rate = get_input("QA rate (0-1, e.g., 0.8 for 80%): ")
+    
+    l0_hc = get_input("L0 Headcount: ", int)
+    l0_lt = get_input("L0 Lead Time (in minutes): ")
+    
+    l1_hc = get_input("L1 Headcount: ", int)
+    l1_lt = get_input("L1 Lead Time (in minutes): ")
+    
+    l2_hc = get_input("L2 Headcount: ", int)
+    l2_lt = get_input("L2 Lead Time (in minutes): ")
+
+    eta, total_human_minutes = calculate_eta(
+        total_tasks, qa_rate, l0_hc, l0_lt, l1_hc, l1_lt, l2_hc, l2_lt
+    )
+
+    print(f"\nResults:")
+    print(f"Estimated Time to Completion: {eta}")
+    print(f"Total Human Minutes: {total_human_minutes:.2f}")
+
+if __name__ == "__main__":
+    main()
